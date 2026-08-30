@@ -111,25 +111,36 @@ export function buildUpstreamUrl(siteUrl: string, requestPath: string): string {
 
   try {
     const parsed = new URL(baseRaw);
-    const basePath = parsed.pathname.replace(/\/+$/, '');
-    const baseHasVersionSuffix = /\/(?:api\/)?v1$/i.test(basePath);
+    let basePath = parsed.pathname.replace(/\/+$/, '');
+    // Native Gemini fallbacks use /v1beta/models even when the configured
+    // compatibility base is /v1beta/openai. Remove only that known suffix so
+    // the request is not sent to /v1beta/openai/v1beta/models.
+    const nativeGeminiPath = /^\/(v\d+(?:beta)?)\/models(?:\/|$)/i.test(path);
+    if (nativeGeminiPath && /\/openai$/i.test(basePath)) {
+      basePath = basePath.slice(0, -'/openai'.length).replace(/\/+$/, '');
+    }
+    const baseVersionMatch = basePath.match(/\/(?:api\/)?(v\d+(?:beta)?)$/i);
+    const baseHasVersionSuffix = !!baseVersionMatch;
     if (baseHasVersionSuffix) {
-      if (path === '/v1') {
+      const baseVersion = baseVersionMatch?.[1] || 'v1';
+      if (path.toLowerCase() === `/${baseVersion.toLowerCase()}`) {
         path = '/';
-      } else if (path.startsWith('/v1/')) {
-        path = path.slice('/v1'.length) || '/';
+      } else if (path.toLowerCase().startsWith(`/${baseVersion.toLowerCase()}/`)) {
+        path = path.slice(baseVersion.length + 1) || '/';
       }
     }
 
     const joinedPath = joinPath(basePath, path);
     return `${formatUrlOrigin(parsed)}${joinedPath}${parsed.search}${parsed.hash}`;
   } catch {
-    const baseHasVersionSuffix = /\/(?:api\/)?v1$/i.test(fallbackBase);
+    const baseVersionMatch = fallbackBase.match(/\/(?:api\/)?(v\d+(?:beta)?)$/i);
+    const baseHasVersionSuffix = !!baseVersionMatch;
     if (baseHasVersionSuffix) {
-      if (path === '/v1') {
+      const baseVersion = baseVersionMatch?.[1] || 'v1';
+      if (path.toLowerCase() === `/${baseVersion.toLowerCase()}`) {
         path = '/';
-      } else if (path.startsWith('/v1/')) {
-        path = path.slice('/v1'.length) || '/';
+      } else if (path.toLowerCase().startsWith(`/${baseVersion.toLowerCase()}/`)) {
+        path = path.slice(baseVersion.length + 1) || '/';
       }
     }
 

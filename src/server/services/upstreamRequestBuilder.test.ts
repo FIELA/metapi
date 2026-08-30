@@ -49,7 +49,8 @@ describe('upstreamRequestBuilder', () => {
       downstreamFormat: 'openai',
     });
 
-    expect(request.path).toBe('/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse');
+    expect(request.path).toBe('/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse&key=sk-test');
+    expect(request.headers.Authorization).toBeUndefined();
     expect(request.runtime).toMatchObject({
       executor: 'gemini-native',
       action: 'streamGenerateContent',

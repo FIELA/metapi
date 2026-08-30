@@ -456,9 +456,16 @@ export function buildUpstreamEndpointRequest(input: {
       .split('/')
       .map((segment) => encodeURIComponent(segment))
       .join('/');
-    return stream
-      ? `/v1beta/models/${encodedModel}:streamGenerateContent?alt=sse`
-      : `/v1beta/models/${encodedModel}:generateContent`;
+    const params = new URLSearchParams();
+    if (stream) params.set('alt', 'sse');
+    // Gemini's native API-key authentication is query based. The compatibility
+    // path normally uses an OpenAI-style bearer header, but this fallback is
+    // dispatched to /v1beta/models and must carry the key explicitly.
+    params.set('key', input.tokenValue);
+    const suffix = params.toString();
+    return `${stream
+      ? `/v1beta/models/${encodedModel}:streamGenerateContent`
+      : `/v1beta/models/${encodedModel}:generateContent`}${suffix ? `?${suffix}` : ''}`;
   };
 
   const resolveGeminiEndpointPath = (endpoint: UpstreamEndpoint): string => {
@@ -601,9 +608,13 @@ export function buildUpstreamEndpointRequest(input: {
     });
     const configuredGeminiRequest = applyConfiguredPayloadRules(geminiRequest);
     const action = input.stream ? 'streamGenerateContent' : 'generateContent';
+    const nativeHeaders = { ...ensureStreamAcceptHeader(commonHeaders, input.stream) };
+    // Do not send the compatibility bearer credential to the native endpoint;
+    // the API key in the query string above is the canonical Gemini auth mode.
+    delete nativeHeaders.Authorization;
     return {
       path: resolveGeminiNativeEndpointPath(input.stream),
-      headers: ensureStreamAcceptHeader(commonHeaders, input.stream),
+      headers: nativeHeaders,
       body: configuredGeminiRequest,
       runtime: {
         executor: 'gemini-native',
