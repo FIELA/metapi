@@ -96,6 +96,24 @@ describe('upstreamRequestBuilder', () => {
     expect(request.body.store).toBe(false);
   });
 
+  it('rejects insecure URLs before embedding a Gemini API key in a native path', () => {
+    expect(() => buildUpstreamEndpointRequest({
+      endpoint: 'chat',
+      modelName: 'gemini-3.5-flash',
+      stream: false,
+      tokenValue: 'sk-test',
+      sitePlatform: 'gemini',
+      siteUrl: 'http://generativelanguage.googleapis.com',
+      openaiBody: {
+        model: 'gemini-3.5-flash',
+        messages: [
+          { role: 'assistant', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read', arguments: '{}' } }] },
+        ],
+      },
+      downstreamFormat: 'openai',
+    })).toThrow('HTTPS');
+  });
+
   it('forces store=false for sub2api native responses passthrough bodies', () => {
     const request = buildUpstreamEndpointRequest({
       endpoint: 'responses',

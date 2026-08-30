@@ -104,7 +104,13 @@ export function buildUpstreamUrl(siteUrl: string, requestPath: string): string {
   const baseRaw = typeof siteUrl === 'string' ? siteUrl.trim() : '';
   const pathRaw = typeof requestPath === 'string' ? requestPath.trim() : '';
   const fallbackBase = baseRaw.replace(/\/+$/, '');
-  let path = pathRaw.startsWith('/') ? pathRaw : `/${pathRaw}`;
+  const requestHashIndex = pathRaw.indexOf('#');
+  const requestHash = requestHashIndex >= 0 ? pathRaw.slice(requestHashIndex) : '';
+  const pathWithQuery = requestHashIndex >= 0 ? pathRaw.slice(0, requestHashIndex) : pathRaw;
+  const requestQueryIndex = pathWithQuery.indexOf('?');
+  const requestQuery = requestQueryIndex >= 0 ? pathWithQuery.slice(requestQueryIndex + 1) : '';
+  let path = (requestQueryIndex >= 0 ? pathWithQuery.slice(0, requestQueryIndex) : pathWithQuery);
+  path = path.startsWith('/') ? path : `/${path}`;
 
   if (!fallbackBase) return path || '/';
   if (!path || path === '/') return fallbackBase;
@@ -116,8 +122,13 @@ export function buildUpstreamUrl(siteUrl: string, requestPath: string): string {
     // compatibility base is /v1beta/openai. Remove only that known suffix so
     // the request is not sent to /v1beta/openai/v1beta/models.
     const nativeGeminiPath = /^\/(v\d+(?:beta)?)\/models(?:\/|$)/i.test(path);
-    if (nativeGeminiPath && /\/openai$/i.test(basePath)) {
-      basePath = basePath.slice(0, -'/openai'.length).replace(/\/+$/, '');
+    if (nativeGeminiPath) {
+      const compatibilitySuffix = basePath.match(/\/(?:api\/)?v\d+(?:beta)?\/openai$/i);
+      if (compatibilitySuffix?.index !== undefined) {
+        basePath = basePath.slice(0, compatibilitySuffix.index).replace(/\/+$/, '');
+      } else if (/\/openai$/i.test(basePath)) {
+        basePath = basePath.slice(0, -'/openai'.length).replace(/\/+$/, '');
+      }
     }
     const baseVersionMatch = basePath.match(/\/(?:api\/)?(v\d+(?:beta)?)$/i);
     const baseHasVersionSuffix = !!baseVersionMatch;
@@ -131,7 +142,12 @@ export function buildUpstreamUrl(siteUrl: string, requestPath: string): string {
     }
 
     const joinedPath = joinPath(basePath, path);
-    return `${formatUrlOrigin(parsed)}${joinedPath}${parsed.search}${parsed.hash}`;
+    const mergedQuery = new URLSearchParams(parsed.search);
+    for (const [key, value] of new URLSearchParams(requestQuery)) {
+      mergedQuery.set(key, value);
+    }
+    const query = mergedQuery.toString();
+    return `${formatUrlOrigin(parsed)}${joinedPath}${query ? `?${query}` : ''}${requestHash || parsed.hash}`;
   } catch {
     const baseVersionMatch = fallbackBase.match(/\/(?:api\/)?(v\d+(?:beta)?)$/i);
     const baseHasVersionSuffix = !!baseVersionMatch;
@@ -144,6 +160,7 @@ export function buildUpstreamUrl(siteUrl: string, requestPath: string): string {
       }
     }
 
-    return `${fallbackBase}${path}`;
+    const query = requestQuery ? `?${requestQuery}` : '';
+    return `${fallbackBase}${path}${query}${requestHash}`;
   }
 }

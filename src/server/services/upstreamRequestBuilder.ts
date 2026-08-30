@@ -451,6 +451,17 @@ export function buildUpstreamEndpointRequest(input: {
   };
 
   const resolveGeminiNativeEndpointPath = (stream: boolean): string => {
+    if (input.siteUrl) {
+      let parsedSiteUrl: URL;
+      try {
+        parsedSiteUrl = new URL(input.siteUrl);
+      } catch {
+        throw new Error('Gemini native API requires a valid HTTPS site URL');
+      }
+      if (parsedSiteUrl.protocol !== 'https:') {
+        throw new Error('Gemini native API requires an HTTPS site URL');
+      }
+    }
     const normalizedModel = asTrimmedString(input.modelName).replace(/^models\//, '');
     const encodedModel = normalizedModel
       .split('/')
